@@ -1,0 +1,29 @@
+HAPPY MIXER DJ — QUICK INSTALL CHEAT SHEET
+
+BUILD MACOS INSTALLER
+1. Open Terminal.
+2. Run: xcode-select --install
+3. Install Node.js 20+ and Rust.
+4. In the project folder run:
+   npm ci
+   npm run typecheck
+   npm run tauri:build
+   npm run usb:prepare
+5. Copy the DMG from src-tauri/target/release/bundle/dmg/ to the USB macOS folder.
+
+BUILD WINDOWS INSTALLER
+1. Install Node.js 20+ and Rust.
+2. Install Visual Studio Build Tools: Desktop C++, MSVC, Windows SDK.
+3. In PowerShell, from the project folder run:
+   npm ci
+   npm run typecheck
+   npm run tauri:build
+   npm run usb:prepare
+4. Copy the EXE or MSI from src-tauri/target/release/bundle/nsis/ or msi/ to the USB Windows folder.
+
+INSTALL
+macOS: Open the DMG and drag the app to Applications.
+Windows: Run the EXE or MSI and follow the installer.
+
+USB
+Use exFAT. Keep Mac and Windows installers in separate folders. Do not run a Mac installer on Windows or a Windows installer on Mac.

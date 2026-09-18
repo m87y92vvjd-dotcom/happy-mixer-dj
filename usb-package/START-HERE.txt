@@ -1,0 +1,23 @@
+Happy Mixer DJ
+================
+
+This USB drive contains installation files for the Happy Mixer DJ desktop application.
+
+macOS:
+1. Open the macOS folder.
+2. Open the .dmg file.
+3. Drag Happy Mixer DJ to Applications.
+4. Open the app from Applications.
+
+Windows:
+1. Open the Windows folder.
+2. Run the .exe or .msi installer.
+3. Follow the installation wizard.
+4. Launch Happy Mixer DJ from the Start menu.
+
+Important:
+- Use the macOS installer only on macOS.
+- Use the Windows installer only on Windows.
+- The app is designed to work offline after installation.
+- Load local audio files from the computer after installing.
+- Unsigned installers may trigger an operating-system security warning.
