@@ -10,6 +10,7 @@ export interface DeckState {
   volume: number;
   pitch: number;
   cue: number;
+  bpm: number;
 }
 
 export interface LibraryTrack {

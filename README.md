@@ -1,46 +1,30 @@
 # Happy Mixer DJ
 
-Happy Mixer DJ is an offline-first desktop DJ application for macOS and Windows. It runs locally without any web dependency, loads local audio files, and gives a four-deck, club-style interface for quick mixing and performance.
+Offline four-deck desktop DJ software for macOS and Windows.
 
-## Features
+## Current app
 
-- Four independent deck controls
-- Local file library loading from the filesystem
-- Play / pause / seek / cue point control
-- Pitch adjustment and volume mixing
-- Master volume and crossfader
-- Sync toggle for quick deck alignment
-- Native desktop packaging via Tauri
-- No internet access required once installed
+- Four local audio decks
+- Play, pause, seek, pitch, volume, cue, master volume, and crossfader controls
+- Offline operation with no web service required
+- Native Tauri packaging
+- USB package preparation for platform installers
 
-## Requirements
-
-- Node.js 20+
-- npm
-- Rust + Cargo
-- On macOS: Xcode Command Line Tools
-- On Windows: Rust toolchain and NSIS for installer builds
-
-## Install dependencies
+## Development
 
 ```bash
-npm install
+npm ci
+npm run typecheck
+npm run tauri:dev
 ```
 
-## Run in development mode
+## Production installers
+
+Build on each target operating system:
 
 ```bash
-npm run tauri dev
+npm run tauri:build
+npm run usb:prepare
 ```
 
-## Build desktop app
-
-```bash
-npm run tauri build
-```
-
-This creates a native application bundle. On macOS it can generate a `.dmg`; on Windows it can generate an installer package depending on the target environment.
-
-## Offline usage
-
-The app uses local audio files only. It does not require any browser or internet service to play music.
+See `docs/USB-PACKAGE.md` for copying the resulting `usb-package` folder to a USB drive.
