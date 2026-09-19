@@ -11,7 +11,8 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "typecheck": "tsc -b --pretty false",
-    "usb:prepare": "node scripts/prepare-usb.mjs"
+    "usb:prepare": "node scripts/prepare-usb.mjs",
+    "export:usb": "node scripts/export-usb.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

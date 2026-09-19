@@ -1,34 +1,62 @@
-# Happy Mixer DJ — USB copy guide
+# Happy Mixer DJ — Transfer Package
 
-The repository cannot directly produce compiled `.dmg` or `.exe` files without running the platform build tools. This project now includes a repeatable USB packaging command.
+This project now includes an export command that combines the source code, configuration, documentation, and build scripts into one folder suitable for copying to a USB drive or another computer.
 
-## Build on macOS
+## Create the transfer package
+
+From the repository root:
 
 ```bash
-npm ci
+npm run export:usb
+```
+
+The generated folder is:
+
+```text
+Happy-Mixer-DJ-USB-Package/
+```
+
+Copy that entire folder to the USB drive. Do not copy only individual source files.
+
+## Build on the destination computer
+
+### macOS
+
+Open Terminal inside the transferred folder and run:
+
+```bash
+bash scripts/build-macos.sh
+```
+
+Or run manually:
+
+```bash
+npm install
 npm run typecheck
 npm run tauri:build
 npm run usb:prepare
 ```
 
-Copy the generated `usb-package` folder to your USB drive. It contains the macOS DMG or app bundle when available.
+### Windows
 
-## Build on Windows
+Open PowerShell inside the transferred folder and run:
 
 ```powershell
-npm ci
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\build-windows.ps1
+```
+
+Or run manually:
+
+```powershell
+npm install
 npm run typecheck
 npm run tauri:build
 npm run usb:prepare
 ```
-
-Copy the generated `usb-package` folder to your USB drive. It contains the Windows NSIS/MSI installer when available.
 
 ## Important
 
-- macOS and Windows installers are different; build each on its target platform.
-- The USB package is not a single universal executable.
-- Use a USB drive formatted as exFAT when it must be shared between macOS and Windows.
-- Keep at least 2 GB free for build artifacts and installers.
-- Audio files are intentionally not copied into the package. Load them locally after installation.
-- Unsigned installers may show an operating-system security warning. Signing requires your Apple and Microsoft certificates.
+The transfer folder is a source/build package. It is not a single portable executable because macOS and Windows require different native binaries. Build the macOS installer on macOS and the Windows installers on Windows.
+
+The native artifacts are created under `src-tauri/target/release/bundle/`. The USB staging folder is `usb-package/`.
