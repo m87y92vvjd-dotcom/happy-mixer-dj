@@ -6,25 +6,20 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:5173",
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [
-      {
-        "title": "Happy Mixer DJ",
-        "width": 1600,
-        "height": 980,
-        "resizable": true,
-        "fullscreen": false
-      }
-    ],
-    "security": {
-      "csp": null
-    }
+    "withGlobalTauri": false,
+    "windows": [{ "title": "Happy Mixer DJ", "width": 1600, "height": 980, "minWidth": 1024, "minHeight": 700, "resizable": true, "fullscreen": false }],
+    "security": { "csp": "default-src 'self'; media-src 'self' blob:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'" }
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg", "nsis"],
-    "icon": []
+    "targets": ["dmg", "nsis"],
+    "category": "Music",
+    "shortDescription": "Offline four-deck DJ mixing software",
+    "longDescription": "Happy Mixer DJ is an offline desktop DJ application for local audio playback and four-deck mixing.",
+    "createUpdaterArtifacts": false
   }
 }
