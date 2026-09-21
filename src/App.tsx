@@ -25,7 +25,9 @@ function createDeck(id: DeckId): DeckState {
   };
 }
 
-const initialDecks = Object.fromEntries(DECK_IDS.map((id) => [id, createDeck(id)])) as Record<DeckId, DeckState>;
+const initialDecks = Object.fromEntries(
+  DECK_IDS.map((id) => [id, createDeck(id)]),
+) as Record<DeckId, DeckState>;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(Number.isFinite(value) ? value : min, min), max);
@@ -41,8 +43,15 @@ function fileId(file: File): string {
 }
 
 export default function App() {
-  const audioRefs = useRef<Record<DeckId, HTMLAudioElement | null>>({ A: null, B: null, C: null, D: null });
+  const audioRefs = useRef<Record<DeckId, HTMLAudioElement | null>>({
+    A: null,
+    B: null,
+    C: null,
+    D: null,
+  });
   const engineRef = useRef(new AudioEngine());
+  const libraryUrlsRef = useRef(new Set<string>());
+  const analysisGenerationRef = useRef<Record<DeckId, number>>({ A: 0, B: 0, C: 0, D: 0 });
   const decksRef = useRef(initialDecks);
   const [decks, setDecks] = useState(initialDecks);
   const [library, setLibrary] = useState<LibraryTrack[]>([]);
@@ -71,15 +80,25 @@ export default function App() {
     const timer = window.setInterval(() => {
       DECK_IDS.forEach((id) => {
         const audio = audioRefs.current[id];
-        if (audio && !audio.paused) updateDeck(id, { position: audio.currentTime, playing: true });
+        if (audio && !audio.paused) {
+          updateDeck(id, { position: audio.currentTime, playing: true });
+        }
       });
     }, 100);
+
     return () => window.clearInterval(timer);
   }, [updateDeck]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+
       const index = Number(event.key) - 1;
       if (index >= 0 && index < DECK_IDS.length) {
         event.preventDefault();
@@ -89,20 +108,27 @@ export default function App() {
         void togglePlay('A');
       }
     };
+
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   });
 
-  useEffect(() => () => {
-    engineRef.current.dispose();
-    library.forEach((track) => URL.revokeObjectURL(track.objectUrl));
-  }, [library]);
+  useEffect(() => {
+    return () => {
+      engineRef.current.dispose();
+      libraryUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      libraryUrlsRef.current.clear();
+    };
+  }, []);
 
   const analyze = async (file: File) => {
     const context = new AudioContext();
     try {
       const buffer = await context.decodeAudioData(await file.arrayBuffer());
-      return { waveform: createWaveform(buffer).peaks, tempo: estimateTempo(buffer) };
+      return {
+        waveform: createWaveform(buffer).peaks,
+        tempo: estimateTempo(buffer),
+      };
     } finally {
       await context.close();
     }
@@ -112,6 +138,7 @@ export default function App() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+
     if (!file.type.startsWith('audio/')) {
       setError('Please choose a supported audio file.');
       return;
@@ -119,28 +146,70 @@ export default function App() {
 
     const audio = audioRefs.current[id];
     if (!audio) return;
+
     setError('');
+    const generation = analysisGenerationRef.current[id] + 1;
+    analysisGenerationRef.current[id] = generation;
     const trackId = fileId(file);
-    const libraryUrl = URL.createObjectURL(file);
-    setLibrary((items) => items.some((item) => item.id === trackId) ? items : [...items, {
-      id: trackId, name: file.name, file, objectUrl: libraryUrl, duration: 0, bpm: 0, bpmConfidence: 0,
-    }]);
+    const existingTrack = library.find((item) => item.id === trackId);
+    const libraryUrl = existingTrack?.objectUrl ?? URL.createObjectURL(file);
+
+    if (!existingTrack) {
+      libraryUrlsRef.current.add(libraryUrl);
+      setLibrary((items) => [
+        ...items,
+        {
+          id: trackId,
+          name: file.name,
+          file,
+          objectUrl: libraryUrl,
+          duration: 0,
+          bpm: 0,
+          bpmConfidence: 0,
+        },
+      ]);
+    }
 
     engineRef.current.load(id, audio, file);
-    updateDeck(id, { fileName: file.name, duration: 0, position: 0, playing: false, cue: 0, pitch: 1, bpm: 0, bpmConfidence: 0, waveform: [] });
+    updateDeck(id, {
+      fileName: file.name,
+      duration: 0,
+      position: 0,
+      playing: false,
+      cue: 0,
+      pitch: 1,
+      bpm: 0,
+      bpmConfidence: 0,
+      waveform: [],
+    });
     applyGain(id);
 
     try {
       const result = await analyze(file);
-      updateDeck(id, { waveform: result.waveform, bpm: result.tempo.bpm, bpmConfidence: result.tempo.confidence });
+      if (analysisGenerationRef.current[id] !== generation) return;
+
+      updateDeck(id, {
+        waveform: result.waveform,
+        bpm: result.tempo.bpm,
+        bpmConfidence: result.tempo.confidence,
+      });
+
+      setLibrary((items) => items.map((item) => item.id === trackId
+        ? { ...item, bpm: result.tempo.bpm, bpmConfidence: result.tempo.confidence }
+        : item));
     } catch {
-      setError('Track loaded, but audio analysis was unavailable for this file.');
+      if (analysisGenerationRef.current[id] === generation) {
+        setError('Track loaded, but audio analysis was unavailable for this file.');
+      }
     }
   };
 
   const setPlaying = (id: DeckId, playing: boolean) => {
     const audio = audioRefs.current[id];
-    updateDeck(id, { playing, position: audio?.currentTime ?? decksRef.current[id].position });
+    updateDeck(id, {
+      playing,
+      position: audio?.currentTime ?? decksRef.current[id].position,
+    });
   };
 
   const togglePlay = async (id: DeckId) => {
@@ -149,6 +218,7 @@ export default function App() {
       setError(`Load a track on Deck ${id} first.`);
       return;
     }
+
     try {
       if (audio.paused) {
         await engineRef.current.play(id);
@@ -165,37 +235,63 @@ export default function App() {
   const seek = (id: DeckId, ratio: number) => {
     const audio = audioRefs.current[id];
     if (!audio) return;
+
     const position = clamp(ratio, 0, 1) * (Number.isFinite(audio.duration) ? audio.duration : 0);
     audio.currentTime = position;
     updateDeck(id, { position });
   };
 
-  const activeDeckCount = useMemo(() => Object.values(decks).filter((deck) => deck.fileName !== EMPTY_TRACK).length, [decks]);
+  const activeDeckCount = useMemo(
+    () => Object.values(decks).filter((deck) => deck.fileName !== EMPTY_TRACK).length,
+    [decks],
+  );
 
   return <div className="app-shell">
     <header className="topbar">
-      <div><div className="brand">Happy Mixer DJ</div><div className="subtitle">Original audio engine · Space = Deck A · 1–4 = play</div></div>
-      <div className="stats-boxes"><div className="stat-box"><span>Library</span><strong>{library.length}</strong></div><div className="stat-box"><span>Decks</span><strong>{activeDeckCount}/4</strong></div></div>
+      <div>
+        <div className="brand">Happy Mixer DJ</div>
+        <div className="subtitle">Original audio engine · Space = Deck A · 1–4 = play</div>
+      </div>
+      <div className="stats-boxes">
+        <div className="stat-box"><span>Library</span><strong>{library.length}</strong></div>
+        <div className="stat-box"><span>Decks</span><strong>{activeDeckCount}/4</strong></div>
+      </div>
     </header>
+
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
+
     <section className="mixer-panel">
-      <div className="mixer-header"><div><span className="tiny-label">Master</span><strong>Output</strong></div><button className="sync-button" onClick={() => setSyncOn((value) => !value)} type="button">{syncOn ? 'Sync On' : 'Sync Off'}</button></div>
+      <div className="mixer-header">
+        <div><span className="tiny-label">Master</span><strong>Output</strong></div>
+        <button className="sync-button" onClick={() => setSyncOn((value) => !value)} type="button">
+          {syncOn ? 'Sync On' : 'Sync Off'}
+        </button>
+      </div>
       <label className="slider-block"><span>Master volume</span><input type="range" min="0" max="1" step="0.01" value={masterVolume} onChange={(event) => setMasterVolume(Number(event.target.value))} /></label>
       <label className="slider-block"><span>Crossfader</span><input type="range" min="0" max="1" step="0.01" value={crossfader} onChange={(event) => setCrossfader(Number(event.target.value))} /></label>
     </section>
-    <main className="deck-grid">{DECK_IDS.map((id) => {
-      const deck = decks[id];
-      const progress = deck.duration > 0 ? clamp(deck.position / deck.duration, 0, 1) * 100 : 0;
-      return <article className="deck" key={id}>
-        <div className="deck-header"><div><div className="deck-label">{deck.title}</div><div className="file-name">{deck.fileName}</div></div><div className={`status-pill ${deck.playing ? 'live' : ''}`}>{deck.playing ? 'LIVE' : 'READY'}</div></div>
-        {deck.waveform.length > 0 && <div className="waveform" aria-label={`Deck ${id} waveform`}>{deck.waveform.map((peak, index) => <i key={index} style={{ height: `${Math.max(8, peak * 100)}%` }} />)}</div>}
-        <div className="transport-row"><button className="primary" onClick={() => void togglePlay(id)} type="button">{deck.playing ? 'Pause' : 'Play'}</button><button onClick={() => updateDeck(id, { cue: audioRefs.current[id]?.currentTime ?? 0 })} type="button">Set Cue</button><button onClick={() => { const audio = audioRefs.current[id]; if (audio) audio.currentTime = deck.cue; }} type="button">Cue Jump</button><button onClick={() => { engineRef.current.stop(id); setPlaying(id, false); }} type="button">Stop</button></div>
-        <div className="progress-wrap"><input aria-label={`Deck ${id} position`} type="range" min="0" max="100" value={progress} onChange={(event) => seek(id, Number(event.target.value) / 100)} /><div className="time-row"><span>{formatTime(deck.position)}</span><span>{formatTime(deck.duration)}</span></div></div>
-        <div className="deck-controls"><label><span>Volume</span><input type="range" min="0" max="1" step="0.01" value={deck.volume} onChange={(event) => { const value = Number(event.target.value); updateDeck(id, { volume: value }); applyGain(id, value); }} /></label><label><span>Pitch</span><input type="range" min="0.5" max="1.5" step="0.01" value={deck.pitch} onChange={(event) => { const value = Number(event.target.value); updateDeck(id, { pitch: value }); engineRef.current.setPitch(id, value); }} /></label></div>
-        <div className="meta-row"><span>Cue: {formatTime(deck.cue)}</span><span>BPM: {deck.bpm || '--'}{deck.bpmConfidence > 0 ? ` (${Math.round(deck.bpmConfidence * 100)}%)` : ''}</span></div>
-        <label className="file-picker"><span>Load track</span><input type="file" accept="audio/*" onChange={(event) => void handleFile(id, event)} /></label>
-        <audio ref={(node) => { audioRefs.current[id] = node; }} preload="metadata" onLoadedMetadata={() => { const audio = audioRefs.current[id]; if (audio) updateDeck(id, { duration: Number.isFinite(audio.duration) ? audio.duration : 0 }); }} onPlay={() => setPlaying(id, true)} onPause={() => setPlaying(id, false)} onEnded={() => { const audio = audioRefs.current[id]; if (audio) audio.currentTime = 0; setPlaying(id, false); }} />
-      </article>;
-    })}</main>
+
+    <main className="deck-grid">
+      {DECK_IDS.map((id) => {
+        const deck = decks[id];
+        const progress = deck.duration > 0 ? clamp(deck.position / deck.duration, 0, 1) * 100 : 0;
+
+        return <article className="deck" key={id}>
+          <div className="deck-header"><div><div className="deck-label">{deck.title}</div><div className="file-name">{deck.fileName}</div></div><div className={`status-pill ${deck.playing ? 'live' : ''}`}>{deck.playing ? 'LIVE' : 'READY'}</div></div>
+          {deck.waveform.length > 0 && <div className="waveform" aria-label={`Deck ${id} waveform`}>{deck.waveform.map((peak, index) => <i key={index} style={{ height: `${Math.max(8, peak * 100)}%` }} />)}</div>}
+          <div className="transport-row">
+            <button className="primary" onClick={() => void togglePlay(id)} type="button">{deck.playing ? 'Pause' : 'Play'}</button>
+            <button onClick={() => updateDeck(id, { cue: audioRefs.current[id]?.currentTime ?? 0 })} type="button">Set Cue</button>
+            <button onClick={() => { const audio = audioRefs.current[id]; if (audio) { audio.currentTime = deck.cue; void togglePlay(id); } }} type="button">Cue Jump</button>
+            <button onClick={() => { const audio = audioRefs.current[id]; if (audio) { engineRef.current.stop(id); setPlaying(id, false); } }} type="button">Stop</button>
+          </div>
+          <div className="progress-wrap"><input aria-label={`Deck ${id} position`} type="range" min="0" max="100" value={progress} onChange={(event) => seek(id, Number(event.target.value) / 100)} /><div className="time-row"><span>{formatTime(deck.position)}</span><span>{formatTime(deck.duration)}</span></div></div>
+          <div className="deck-controls"><label><span>Volume</span><input type="range" min="0" max="1" step="0.01" value={deck.volume} onChange={(event) => { const value = Number(event.target.value); updateDeck(id, { volume: value }); applyGain(id, value); }} /></label><label><span>Pitch</span><input type="range" min="0.5" max="1.5" step="0.01" value={deck.pitch} onChange={(event) => { const value = Number(event.target.value); updateDeck(id, { pitch: value }); engineRef.current.setPitch(id, value); }} /></label></div>
+          <div className="meta-row"><span>Cue: {formatTime(deck.cue)}</span><span>BPM: {deck.bpm || '--'}{deck.bpmConfidence > 0 ? ` (${Math.round(deck.bpmConfidence * 100)}%)` : ''}</span></div>
+          <label className="file-picker"><span>Load track</span><input type="file" accept="audio/*" onChange={(event) => void handleFile(id, event)} /></label>
+          <audio ref={(node) => { audioRefs.current[id] = node; }} preload="metadata" onLoadedMetadata={() => { const current = audioRefs.current[id]; if (current) updateDeck(id, { duration: Number.isFinite(current.duration) ? current.duration : 0 }); }} onPlay={() => setPlaying(id, true)} onPause={() => setPlaying(id, false)} onEnded={() => { const current = audioRefs.current[id]; if (current) current.currentTime = 0; setPlaying(id, false); }} />
+        </article>;
+      })}
+    </main>
   </div>;
 }
