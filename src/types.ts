@@ -1,7 +1,3 @@
-import { createWaveform, estimateTempo } from './audio/analysis';
-import { AudioEngine } from './audio/audioEngine';
-import { alignPositionToBeat, calculateDeckGain, playbackRateFromPitch } from './audio/mixerMath';
-
 export type DeckId = 'A' | 'B' | 'C' | 'D';
 
 export interface HotCue {
@@ -44,5 +40,3 @@ export interface LibraryTrack {
   bpm: number;
   bpmConfidence: number;
 }
-
-export { AudioEngine, createWaveform, estimateTempo, calculateDeckGain, playbackRateFromPitch, alignPositionToBeat };
